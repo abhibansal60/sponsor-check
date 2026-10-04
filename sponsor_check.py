@@ -2,7 +2,8 @@
 """Does this employer sponsor work visas? Checks the UK register of licensed sponsors
 and USCIS H-1B approvals. Standard library only.
 
-    python3 sponsor_check.py build            # download both sources, write site/data.json
+    python3 sponsor_check.py build            # download the UK register, write site/data.json
+    python3 sponsor_check.py us-snapshot      # re-download the US file into us-h1b.csv (rarely needed)
     python3 sponsor_check.py "Thought Machine" # look up an employer (rebuilds data if stale)
     python3 sponsor_check.py --json "Glean"    # same, as JSON
 """
@@ -17,6 +18,9 @@ UK_PAGE = "https://www.gov.uk/government/publications/register-of-licensed-spons
 # ponytail: US data is FY2023, swap in a newer source (DOL LCA disclosures) if one becomes scriptable.
 US_YEAR = 2023
 US_CSV = f"https://www.uscis.gov/sites/default/files/document/data/h1b_datahubexport-{US_YEAR}.csv"
+# The FY2023 file never changes and USCIS returns 403 to GitHub Actions, so a per-employer
+# snapshot is committed and builds read it from disk.
+US_SNAPSHOT = os.path.join(ROOT, "us-h1b.csv")
 STALE_DAYS = 2
 
 # Words that don't identify an employer. Shipped inside data.json so the web page uses the same list.
@@ -61,7 +65,7 @@ def build_uk():
     return sorted(rows), routes, as_of.group(1) if as_of else str(date.today())
 
 
-def build_us():
+def snapshot_us():
     emp = defaultdict(lambda: [0, ""])
     for row in csv.DictReader(io.StringIO(fetch(US_CSV))):
         name = row["Employer"].strip()
@@ -72,7 +76,15 @@ def build_us():
         e[0] += approvals
         if row["City"] and not e[1]:
             e[1] = f'{row["City"].title()}, {row["State"]}'
-    return sorted([n, a, place] for n, (a, place) in emp.items() if a)
+    rows = sorted([n, a, place] for n, (a, place) in emp.items() if a)
+    with open(US_SNAPSHOT, "w", newline="") as f:
+        csv.writer(f).writerows([["employer", "approvals", "place"]] + rows)
+    print(f"wrote {US_SNAPSHOT}: {len(rows)} employers (FY{US_YEAR})")
+
+
+def build_us():
+    with open(US_SNAPSHOT, newline="") as f:
+        return [[r["employer"], int(r["approvals"]), r["place"]] for r in csv.DictReader(f)]
 
 
 def build():
@@ -126,6 +138,8 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if args == ["build"]:
         build()
+    elif args == ["us-snapshot"]:
+        snapshot_us()
     elif args and args[0] == "--json":
         print(json.dumps([lookup(q) for q in args[1:]], indent=1))
     elif args:
