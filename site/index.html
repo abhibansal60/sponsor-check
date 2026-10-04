@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sponsor check: does this company sponsor work visas?</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="Search the UK register of licensed visa sponsors and US H-1B approvals by company name. Free, updated daily from official government data.">
+<style>
+  :root { color-scheme: light dark; --fg: #1b1b1b; --muted: #6b6b6b; --bg: #fbfaf7; --card: #fff; --line: #e4e1da; --yes: #1d7a46; --no: #a3402b; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #ecebe7; --muted: #9c9a94; --bg: #151514; --card: #1f1f1d; --line: #33322f; --yes: #5fc58c; --no: #e08a73; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 17px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--fg); background: var(--bg); }
+  main { max-width: 42rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  h1 { font-size: 1.9rem; line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  p.lede { color: var(--muted); margin: 0 0 1.5rem; }
+  input { width: 100%; font: inherit; font-size: 1.15rem; padding: .8rem 1rem; border: 2px solid var(--line); border-radius: .6rem; background: var(--card); color: var(--fg); }
+  input:focus { outline: none; border-color: var(--fg); }
+  #status { color: var(--muted); font-size: .9rem; min-height: 1.5rem; margin: .5rem 0 1rem; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: .6rem; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+  h2 { font-size: 1rem; margin: 0 0 .5rem; }
+  h2 .v { display: block; }
+  .yes { color: var(--yes); } .no { color: var(--no); }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: .45rem 0; border-top: 1px solid var(--line); }
+  li:first-child { border-top: 0; }
+  .name { font-weight: 600; }
+  .meta { color: var(--muted); font-size: .9rem; }
+  .note { color: var(--muted); font-size: .9rem; margin: .5rem 0 0; }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 2.5rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  footer a, .note a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Does this company sponsor work visas?</h1>
+  <p class="lede">Type a company name. Sponsor check searches the UK government's register of licensed sponsors (updated daily) and US H-1B approvals.</p>
+  <input id="q" type="search" aria-label="Company name" placeholder="e.g. Anthropic, Thought Machine, Synthesia" autocomplete="off" autofocus aria-describedby="status">
+  <div id="status" role="status" aria-live="polite">Loading the registers…</div>
+  <div id="out"></div>
+  <footer>
+    <p>Being on the UK register means the employer holds a sponsor licence. It doesn't promise that every role is open to sponsorship. Ask the recruiter for the role you want.</p>
+    <p>Sources: <a href="https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers">UK register of licensed sponsors: workers</a> (Home Office, Open Government Licence) and <a href="https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub">USCIS H-1B Employer Data Hub</a>. <span id="dates"></span></p>
+    <p>Made by <a href="https://abhibansal.dev">Abhinav Bansal</a>. <a href="https://github.com/abhibansal60/sponsor-check">Source and CLI on GitHub</a>.</p>
+  </footer>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+let D, drop, ukKeys, usKeys;
+
+// Same rules as norm() and matches() in sponsor_check.py; the word list comes from data.json.
+const norm = (s) => s.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w && !drop.has(w));
+const matches = (q, n) => q.length > 0 && (q.every((w, i) => n[i] === w) || n.join("") === q.join(""));
+
+function search(query) {
+  const q = norm(query);
+  const pick = (rows, keys) => rows.map((r, i) => [r, keys[i]]).filter(([, k]) => matches(q, k))
+    .sort((a, b) => (a[1].join(" ") !== q.join(" ")) - (b[1].join(" ") !== q.join(" ")) || a[0][0].length - b[0][0].length)
+    .slice(0, 10).map(([r]) => r);
+  return { uk: pick(D.uk, ukKeys), us: pick(D.us, usKeys) };
+}
+
+function render() {
+  const query = $("q").value.trim();
+  history.replaceState(null, "", query ? "?q=" + encodeURIComponent(query) : location.pathname);
+  if (!query) { $("out").innerHTML = ""; $("status").textContent = ""; return; }
+  const { uk, us } = search(query);
+  $("status").textContent = "";
+  const ukList = uk.map(([n, town, routes, rating]) =>
+    `<li><div class="name">${esc(n)}</div><div class="meta">${esc(town || "Town not listed")} · ${esc(rating)} rating · ${esc(routes.map((i) => D.routes[i]).join(", "))}</div></li>`).join("");
+  const usList = us.map(([n, approvals, place]) =>
+    `<li><div class="name">${esc(n)}</div><div class="meta">${approvals} H-1B approval${approvals === 1 ? "" : "s"} in FY${D.us_year}${place ? " · " + esc(place) : ""}</div></li>`).join("");
+  $("out").innerHTML = `
+    <section><h2>United Kingdom <span class="v ${uk.length ? "yes" : "no"}">${uk.length ? "Licensed sponsor" : "Not on the register"}</span></h2>
+      ${uk.length ? `<ul>${ukList}</ul>` : `<p class="note">No licensed sponsor matches “${esc(query)}”. Try the company's legal name, for example “Acme UK Ltd”.</p>`}
+      ${uk.length ? `<p class="note">Check that the legal name is the company you mean.</p>` : ""}</section>
+    <section><h2>United States <span class="v ${us.length ? "yes" : "no"}">${us.length ? "Sponsored H-1Bs" : "No H-1B approvals found"}</span></h2>
+      ${us.length ? `<ul>${usList}</ul>` : `<p class="note">No H-1B approvals in FY${D.us_year}. Companies founded or hiring abroad since then may sponsor now.</p>`}</section>`;
+}
+
+fetch("data.json").then((r) => r.json()).then((data) => {
+  D = data; drop = new Set(D.drop);
+  ukKeys = D.uk.map((r) => norm(r[0])); usKeys = D.us.map((r) => norm(r[0]));
+  $("dates").textContent = `UK register dated ${D.uk_date}; US data is fiscal year ${D.us_year}.`;
+  $("status").textContent = `${D.uk.length.toLocaleString()} UK sponsors and ${D.us.length.toLocaleString()} US employers loaded.`;
+  const q = new URLSearchParams(location.search).get("q");
+  if (q) { $("q").value = q; render(); }
+  let t; $("q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(render, 120); });
+}).catch(() => { $("status").textContent = "Couldn't load the registers. Refresh to try again."; });
+</script>
+</body>
+</html>
