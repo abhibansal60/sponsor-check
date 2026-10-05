@@ -55,9 +55,12 @@ const matches = (q, n) => q.length > 0 && (q.every((w, i) => n[i] === w) || n.jo
 
 function search(query) {
   const q = norm(query);
-  const pick = (rows, keys) => rows.map((r, i) => [r, keys[i]]).filter(([, k]) => matches(q, k))
-    .sort((a, b) => (a[1].join(" ") !== q.join(" ")) - (b[1].join(" ") !== q.join(" ")) || a[0][0].length - b[0][0].length)
+  const pick = (rows, keys) => {
+    const hits = []; // a plain loop: no 155k throwaway pairs on every keystroke
+    for (let i = 0; i < rows.length; i++) if (matches(q, keys[i])) hits.push([rows[i], keys[i]]);
+    return hits.sort((a, b) => (a[1].join(" ") !== q.join(" ")) - (b[1].join(" ") !== q.join(" ")) || a[0][0].length - b[0][0].length)
     .slice(0, 10).map(([r]) => r);
+  };
   return { uk: pick(D.uk, ukKeys), us: pick(D.us, usKeys) };
 }
 

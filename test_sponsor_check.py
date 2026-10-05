@@ -1,4 +1,4 @@
-from sponsor_check import lookup, matches, norm
+from sponsor_check import lookup, matches, norm, ratings
 
 assert norm("Databricks UK Limited") == ["databricks"]
 assert norm("AT&T Inc.") == ["at", "and", "t"]
@@ -20,4 +20,8 @@ r = lookup("Palantir", data)
 assert r["uk"][0]["name"] == "Palantir UK Limited"  # shortest close match first
 assert lookup("Glean", data)["us"][0]["approvals"] == 5
 assert lookup("Vapi", data) == {"query": "Vapi", "uk_date": "2026-10-02", "us_year": 2023, "uk": [], "us": []}
+assert ratings("Worker (A rating)") == {"A"}
+assert ratings("Worker (A (Premium))") == {"A"}  # Google's row: showed " rating" before
+assert ratings("Temporary Worker (B rating)") == {"B"}
+assert ratings("Worker (UK Expansion Worker: Provisional )") == {"Provisional"}
 print("ok")

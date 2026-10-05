@@ -39,6 +39,12 @@ def matches(query, name):
     return bool(q) and (n[:len(q)] == q or "".join(n) == "".join(q))
 
 
+def ratings(type_and_rating):
+    """'Worker (A rating)', 'Worker (A (Premium))' -> {'A'}; 'Worker (UK Expansion Worker: Provisional )' -> {'Provisional'}."""
+    found = set(re.findall(r"\b([AB])\s*(?:rating|\()", type_and_rating))
+    return found or ({"Provisional"} if "provisional" in type_and_rating.lower() else set())
+
+
 def fetch(url):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 sponsor-check"})
     with urllib.request.urlopen(req, timeout=120) as r:
@@ -57,9 +63,9 @@ def build_uk():
         if row["Town/City"].strip():
             o[0].add(row["Town/City"].strip().title())
         o[1].add(row["Route"].strip())
-        o[2].update(re.findall(r"([AB]) rating", row["Type & Rating"]))
+        o[2].update(ratings(row["Type & Rating"]))
     routes = sorted({r for _, r, _ in orgs.values() for r in r})  # 18 names, sent once as indexes
-    rows = [[n, ", ".join(sorted(t)), [routes.index(x) for x in sorted(r)], "".join(sorted(g))]
+    rows = [[n, ", ".join(sorted(t)), [routes.index(x) for x in sorted(r)], ", ".join(sorted(g))]
             for n, (t, r, g) in orgs.items()]
     as_of = re.search(r"(\d{4}-\d{2}-\d{2})\.csv$", url)
     return sorted(rows), routes, as_of.group(1) if as_of else str(date.today())
@@ -101,17 +107,30 @@ def build():
 
 
 def load():
-    if not os.path.exists(DATA) or time.time() - os.path.getmtime(DATA) > STALE_DAYS * 86400:
+    if not os.path.exists(DATA):
         build()
+    elif time.time() - os.path.getmtime(DATA) > STALE_DAYS * 86400:
+        try:
+            build()
+        except Exception as e:  # offline or gov.uk changed: old data beats no answer
+            print(f"using data from {time.strftime('%Y-%m-%d', time.localtime(os.path.getmtime(DATA)))} ({e})", file=sys.stderr)
     with open(DATA) as f:
         return json.load(f)
 
 
+def _keyed(rows, _cache={}):
+    """[(norm(name), row)] once per row list: batch lookups no longer re-normalise 155k names per query."""
+    if id(rows) not in _cache:
+        _cache[id(rows)] = (rows, [(norm(r[0]), r) for r in rows])  # rows kept alive so the id stays theirs
+    return _cache[id(rows)][1]
+
+
 def lookup(query, data=None):
     data = data or load()
-    rank = lambda row: (norm(row[0]) != norm(query), len(row[0]))
-    uk = sorted((r for r in data["uk"] if matches(query, r[0])), key=rank)
-    us = sorted((r for r in data["us"] if matches(query, r[0])), key=rank)
+    q = norm(query)
+    hit = lambda n: bool(q) and (n[:len(q)] == q or "".join(n) == "".join(q))
+    pick = lambda rows: [r for n, r in sorted(((n, r) for n, r in _keyed(rows) if hit(n)), key=lambda x: (x[0] != q, len(x[1][0])))]
+    uk, us = pick(data["uk"]), pick(data["us"])
     return {"query": query, "uk_date": data["uk_date"], "us_year": data["us_year"],
             "uk": [{"name": n, "town": t, "routes": [data["routes"][i] for i in r], "rating": g}
                    for n, t, r, g in uk[:10]],
@@ -122,7 +141,7 @@ def report(res):
     out = [f'{res["query"]}:']
     if res["uk"]:
         for o in res["uk"]:
-            out.append(f'  UK licensed sponsor ({o["rating"]} rating, register {res["uk_date"]}): '
+            out.append(f'  UK licensed sponsor ({o["rating"] or "no"} rating, register {res["uk_date"]}): '
                        f'{o["name"]}, {o["town"]} [{"; ".join(o["routes"])}]')
     else:
         out.append(f'  UK: not on the register of licensed sponsors ({res["uk_date"]})')
