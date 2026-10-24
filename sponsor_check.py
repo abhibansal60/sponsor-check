@@ -7,7 +7,7 @@ and USCIS H-1B approvals. Standard library only.
     python3 sponsor_check.py "Thought Machine" # look up an employer (rebuilds data if stale)
     python3 sponsor_check.py --json "Glean"    # same, as JSON
 """
-import csv, io, json, os, re, sys, time, urllib.request
+import csv, io, json, os, re, sys, time, unicodedata, urllib.request
 from collections import defaultdict
 from datetime import date
 
@@ -25,18 +25,41 @@ STALE_DAYS = 2
 
 # Words that don't identify an employer. Shipped inside data.json so the web page uses the same list.
 DROP = ["limited", "ltd", "llc", "llp", "lp", "inc", "incorporated", "plc", "pbc", "corp",
-        "corporation", "co", "company", "the", "uk", "us", "usa", "gmbh"]
+        "corporation", "co", "company", "the", "uk", "us", "usa", "gmbh", "ag", "sa", "bv", "nv", "pty"]
 _DROP = set(DROP)
+# "Roofoods Ltd t/a Deliveroo": the trading name after the marker is searchable on its own.
+TRADING_AS = re.compile(r"\b(?:t/as?|trading as|d/b/a|dba)\b", re.I)
 
 
 def norm(name):
-    words = re.sub(r"[^a-z0-9]+", " ", name.lower().replace("&", " and ")).split()
+    s = unicodedata.normalize("NFKD", name.lower())
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")  # Société -> societe
+    words = re.sub(r"[^a-z0-9]+", " ", re.sub(r"['’]", "", s).replace("&", " and ")).split()
     return [w for w in words if w not in _DROP]
 
 
+def keys(name):
+    """norm() of the legal name, plus of each part around a trading-as marker."""
+    parts = TRADING_AS.split(name)
+    return [norm(name)] + ([norm(p) for p in parts] if len(parts) > 1 else [])
+
+
+def hit(q, n):
+    """The query's letters, spaces ignored, run from the start of the name to the end of one of its words:
+    'Palantir' finds Palantir UK Limited, 'J.P. Morgan' finds JPMorgan Chase, 'Notion' misses Notional."""
+    qj, i = "".join(q), 0
+    for w in n:
+        if not qj.startswith(w, i):
+            return False
+        i += len(w)
+        if i == len(qj):
+            return True
+    return False
+
+
 def matches(query, name):
-    q, n = norm(query), norm(name)
-    return bool(q) and (n[:len(q)] == q or "".join(n) == "".join(q))
+    q = norm(query)
+    return any(hit(q, k) for k in keys(name))
 
 
 def ratings(type_and_rating):
@@ -119,17 +142,19 @@ def load():
 
 
 def _keyed(rows, _cache={}):
-    """[(norm(name), row)] once per row list: batch lookups no longer re-normalise 155k names per query."""
+    """[(keys(name), row)] once per row list: batch lookups no longer re-normalise 155k names per query."""
     if id(rows) not in _cache:
-        _cache[id(rows)] = (rows, [(norm(r[0]), r) for r in rows])  # rows kept alive so the id stays theirs
+        _cache[id(rows)] = (rows, [(keys(r[0]), r) for r in rows])  # rows kept alive so the id stays theirs
     return _cache[id(rows)][1]
 
 
 def lookup(query, data=None):
     data = data or load()
     q = norm(query)
-    hit = lambda n: bool(q) and (n[:len(q)] == q or "".join(n) == "".join(q))
-    pick = lambda rows: [r for n, r in sorted(((n, r) for n, r in _keyed(rows) if hit(n)), key=lambda x: (x[0] != q, len(x[1][0])))]
+    # Exact legal name, then legal names that start with the query, then trading names; shortest first.
+    rank = lambda ks, r: ("".join(ks[0]) != "".join(q), not hit(q, ks[0]), len(r[0]))
+    pick = lambda rows: [r for ks, r in sorted(((ks, r) for ks, r in _keyed(rows) if any(hit(q, k) for k in ks)),
+                                               key=lambda x: rank(*x))]
     uk, us = pick(data["uk"]), pick(data["us"])
     return {"query": query, "uk_date": data["uk_date"], "us_year": data["us_year"],
             "uk": [{"name": n, "town": t, "routes": [data["routes"][i] for i in r], "rating": g}

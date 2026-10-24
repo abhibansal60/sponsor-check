@@ -36,7 +36,7 @@ Glean:
 
 `--json` prints the same as JSON. The first lookup downloads the UK register (about 11 MB, 5 seconds), and lookups rebuild it once it is more than 2 days old. `python3 sponsor_check.py build` forces a rebuild.
 
-Matching ignores case, punctuation and filler words such as Ltd, Inc and UK, then matches whole words from the start of the legal name: "Palantir" finds Palantir UK Limited and Palantir Technologies UK Limited, but "Anthropic" doesn't find a philanthropic trust. Always check that the legal name is the company you mean.
+Matching ignores case, accents, punctuation, spaces and filler words such as Ltd, Inc, AG and UK, then matches whole words from the start of the legal name: "Palantir" finds Palantir UK Limited and Palantir Technologies UK Limited, "J.P. Morgan" finds JPMorgan Chase, but "Anthropic" doesn't find a philanthropic trust. A trading name after "t/a", "trading as" or "dba" is searchable too, so "Deliveroo" finds Roofoods Ltd t/a Deliveroo; legal-name matches are listed first. Always check that the legal name is the company you mean.
 
 ## What the data means
 
