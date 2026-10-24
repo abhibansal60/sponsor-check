@@ -69,7 +69,10 @@ function render() {
   history.replaceState(null, "", query ? "?q=" + encodeURIComponent(query) : location.pathname);
   if (!query) { $("out").innerHTML = ""; $("status").textContent = ""; return; }
   const { uk, us } = search(query);
-  $("status").textContent = "";
+  // #status is the live region, so screen readers hear the outcome of each search. search() keeps 10 at most.
+  const count = (n, thing) => (n === 10 ? "10 or more " : n + " ") + thing + (n === 1 ? "" : "s");
+  $("status").textContent = `UK: ${uk.length ? count(uk.length, "licensed sponsor") : "not on the register"}. `
+    + `US: ${us.length ? count(us.length, "H-1B employer") : "no H-1B approvals found"}.`;
   const ukList = uk.map(([n, town, routes, rating]) =>
     `<li><div class="name">${esc(n)}</div><div class="meta">${esc(town || "Town not listed")} · ${esc(rating)} rating · ${esc(routes.map((i) => D.routes[i]).join(", "))}</div></li>`).join("");
   const usList = us.map(([n, approvals, place]) =>
