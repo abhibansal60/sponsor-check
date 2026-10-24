@@ -88,7 +88,8 @@ fetch("data.json").then((r) => r.json()).then((data) => {
   $("dates").textContent = `UK register dated ${D.uk_date}; US data is fiscal year ${D.us_year}.`;
   $("status").textContent = `${D.uk.length.toLocaleString()} UK sponsors and ${D.us.length.toLocaleString()} US employers loaded.`;
   const q = new URLSearchParams(location.search).get("q");
-  if (q) { $("q").value = q; render(); }
+  if (q && !$("q").value.trim()) $("q").value = q; // text typed while data.json loaded wins over ?q=
+  if ($("q").value.trim()) render();
   let t; $("q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(render, 120); });
 }).catch(() => { $("status").textContent = "Couldn't load the registers. Refresh to try again."; });
 </script>
