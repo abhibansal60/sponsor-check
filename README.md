@@ -27,11 +27,11 @@ python3 sponsor_check.py "Thought Machine" "Glean"
 
 ```
 Thought Machine:
-  UK licensed sponsor (A rating, register 2026-10-02): Thought Machine Group Limited, London [Skilled Worker]
-  US: no H-1B approvals in FY2023 (newer companies may sponsor now)
+  UK licensed sponsor (A rating, register 2026-10-23): Thought Machine Group Limited, London [Skilled Worker]
+  US: no H-1B approvals in FY2025 (newer companies may sponsor now)
 Glean:
-  UK: not on the register of licensed sponsors (2026-10-02)
-  US H-1B approvals FY2023: 5 (GLEAN TECHNOLOGIES INC, Palo Alto, CA)
+  UK: not on the register of licensed sponsors (2026-10-23)
+  US H-1B approvals FY2025: 25 (GLEAN TECHNOLOGIES INC, Palo Alto, CA)
 ```
 
 `--json` prints the same as JSON. The first lookup downloads the UK register (about 11 MB, 5 seconds), and lookups rebuild it once it is more than 2 days old. `python3 sponsor_check.py build` forces a rebuild.
@@ -41,7 +41,7 @@ Matching ignores case, punctuation and filler words such as Ltd, Inc and UK, the
 ## What the data means
 
 - **UK:** an employer on the register holds a sponsor licence for the listed routes (Skilled Worker is the usual one for tech jobs). The register is the Home Office's [register of licensed sponsors: workers](https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers), published under the Open Government Licence v3.0. A licence doesn't mean every role is open to sponsorship.
-- **US:** H-1B petitions USCIS approved for the employer in fiscal year 2023, from the [H-1B Employer Data Hub](https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub). FY2023 is the newest year USCIS publishes as a CSV, so the repo keeps a per-employer total in `us-h1b.csv` (`python3 sponsor_check.py us-snapshot` regenerates it). Companies founded or hiring abroad since then won't appear even if they sponsor now.
+- **US:** H-1B petitions USCIS approved for the employer in fiscal year 2025 (all approval types: new employment, continuation, change of employer and so on), from the [H-1B Employer Data Hub](https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub). USCIS publishes FY2024 onwards only in the hub's Tableau workbook, whose "H1B Public" crosstab downloads as a ~95 MB CSV, so the repo keeps a per-employer total in `us-h1b.csv`. To move to a newer year once USCIS finishes it, set `US_YEAR` in `sponsor_check.py` and run `python3 sponsor_check.py us-snapshot`. Companies founded or hiring abroad since then won't appear even if they sponsor now.
 
 Not legal advice.
 

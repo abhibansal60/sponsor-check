@@ -14,12 +14,14 @@ from datetime import date
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, "site", "data.json")
 UK_PAGE = "https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers"
-# USCIS publishes FY2024+ only inside a Tableau dashboard; FY2023 is the newest plain CSV.
-# ponytail: US data is FY2023, swap in a newer source (DOL LCA disclosures) if one becomes scriptable.
-US_YEAR = 2023
-US_CSV = f"https://www.uscis.gov/sites/default/files/document/data/h1b_datahubexport-{US_YEAR}.csv"
-# The FY2023 file never changes and USCIS returns 403 to GitHub Actions, so a per-employer
-# snapshot is committed and builds read it from disk.
+# USCIS publishes FY2024+ only in the Data Hub's Tableau workbook. Its "H1B Public" crosstab
+# exports as CSV for one fiscal year (the filter field name ends in three spaces). FY2025 is the
+# newest complete year; the hub adds a quarter of the current year every few months.
+US_YEAR = 2025
+US_CSV = ("https://bigdataanalyticspub-sb.uscis.dhs.gov/views/H1BEmployerDataHub-Final/H1BPublic.csv"
+          f"?Fiscal%20Year%20%20%20={US_YEAR}")
+# A finished year never changes and the export is ~95 MB, so a per-employer snapshot is
+# committed and builds read it from disk.
 US_SNAPSHOT = os.path.join(ROOT, "us-h1b.csv")
 STALE_DAYS = 2
 
@@ -73,15 +75,17 @@ def build_uk():
 
 def snapshot_us():
     emp = defaultdict(lambda: [0, ""])
+    # Long format: one row per employer, tax ID, zip and measure ("New Employment Approval", ...).
     for row in csv.DictReader(io.StringIO(fetch(US_CSV))):
-        name = row["Employer"].strip()
-        if not name:
+        name = row["Employer (Petitioner) Name"].strip()
+        if not name or not row["Measure Names"].endswith("Approval"):
             continue
-        approvals = int(row["Initial Approval"] or 0) + int(row["Continuing Approval"] or 0)
+        if row["Fiscal Year   "] != str(US_YEAR):
+            sys.exit(f"US export returned FY{row['Fiscal Year   ']}, not FY{US_YEAR}: did the filter field change?")
         e = emp[name]
-        e[0] += approvals
-        if row["City"] and not e[1]:
-            e[1] = f'{row["City"].title()}, {row["State"]}'
+        e[0] += int(row["Measure Values"].replace(",", "") or 0)
+        if row["Petitioner City"] and not e[1]:
+            e[1] = f'{row["Petitioner City"].title()}, {row["Petitioner State"]}'
     rows = sorted([n, a, place] for n, (a, place) in emp.items() if a)
     with open(US_SNAPSHOT, "w", newline="") as f:
         csv.writer(f).writerows([["employer", "approvals", "place"]] + rows)
