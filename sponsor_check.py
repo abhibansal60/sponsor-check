@@ -28,7 +28,7 @@ DROP = ["limited", "ltd", "llc", "llp", "lp", "inc", "incorporated", "plc", "pbc
         "corporation", "co", "company", "the", "uk", "us", "usa", "gmbh", "ag", "sa", "bv", "nv", "pty"]
 _DROP = set(DROP)
 # "Roofoods Ltd t/a Deliveroo": the trading name after the marker is searchable on its own.
-TRADING_AS = re.compile(r"\b(?:t/as?|trading as|d/b/a|dba)\b", re.I)
+TRADING_AS = re.compile(r"\b(?:t/as?|trading\s+as|d/b/a|d\.b\.a\.?|dba)(?!\w)", re.I)
 
 
 def norm(name):
@@ -39,9 +39,9 @@ def norm(name):
 
 
 def keys(name):
-    """norm() of the legal name, plus of each part around a trading-as marker."""
+    """norm() of the legal name, plus of each part around a trading-as marker ("DBA Media Ltd" has none)."""
     parts = TRADING_AS.split(name)
-    return [norm(name)] + ([norm(p) for p in parts] if len(parts) > 1 else [])
+    return [norm(name)] + ([norm(p) for p in parts] if len(parts) > 1 and parts[0].strip() else [])
 
 
 def hit(q, n):

@@ -50,10 +50,10 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 let D, drop, ukKeys, usKeys;
 
 // Same rules as norm(), keys(), hit() and lookup() in sponsor_check.py; the word list comes from data.json.
-const TRADING_AS = /\b(?:t\/as?|trading as|d\/b\/a|dba)\b/i;
+const TRADING_AS = /\b(?:t\/as?|trading\s+as|d\/b\/a|d\.b\.a\.?|dba)(?!\w)/i;
 const norm = (s) => s.toLowerCase().normalize("NFKD").replace(/\p{Mn}/gu, "").replace(/['\u2019]/g, "").replace(/&/g, " and ")
   .replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w && !drop.has(w));
-const keys = (name) => { const parts = name.split(TRADING_AS); return [norm(name), ...(parts.length > 1 ? parts.map(norm) : [])]; };
+const keys = (name) => { const parts = name.split(TRADING_AS); return [norm(name), ...(parts.length > 1 && parts[0].trim() ? parts.map(norm) : [])]; };
 const hit = (qj, n) => {
   let i = 0;
   for (const w of n) {

@@ -46,4 +46,8 @@ assert ratings("Worker (A rating)") == {"A"}
 assert ratings("Worker (A (Premium))") == {"A"}  # Google's row: showed " rating" before
 assert ratings("Temporary Worker (B rating)") == {"B"}
 assert ratings("Worker (UK Expansion Worker: Provisional )") == {"Provisional"}
+assert not matches("Media", "DBA Media Ltd")  # a name that starts with DBA is not a trading name
+assert matches("DBA Media", "DBA Media Ltd")
+assert matches("Deliveroo", "Roofoods Ltd d.b.a. Deliveroo")
+assert matches("Deliveroo", "Roofoods Ltd trading  as Deliveroo")
 print("ok")
