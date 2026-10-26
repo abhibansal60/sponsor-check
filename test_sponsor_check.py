@@ -25,6 +25,10 @@ assert matches("Procogia", "0965688 BC LTD DBA PROCOGIA")
 assert matches("Cherry Tree Care Home", "Dreams Care Homes Limited T/As Cherry Tree Care Home")
 assert matches("Foo", "Bar Limited trading as Foo")
 assert not matches("Smith", "T A Smith Ltd")  # initials, not "t/a"
+assert not matches("Media", "DBA Media Ltd")  # a name that starts with DBA is not a trading name
+assert matches("DBA Media", "DBA Media Ltd")
+assert matches("Deliveroo", "Roofoods Ltd d.b.a. Deliveroo")
+assert matches("Deliveroo", "Roofoods Ltd trading  as Deliveroo")
 assert not matches("Notion", "No Tional Ltd")
 
 data = {"uk_date": "2026-10-02", "us_year": 2023, "routes": ["Skilled Worker"],
@@ -46,8 +50,4 @@ assert ratings("Worker (A rating)") == {"A"}
 assert ratings("Worker (A (Premium))") == {"A"}  # Google's row: showed " rating" before
 assert ratings("Temporary Worker (B rating)") == {"B"}
 assert ratings("Worker (UK Expansion Worker: Provisional )") == {"Provisional"}
-assert not matches("Media", "DBA Media Ltd")  # a name that starts with DBA is not a trading name
-assert matches("DBA Media", "DBA Media Ltd")
-assert matches("Deliveroo", "Roofoods Ltd d.b.a. Deliveroo")
-assert matches("Deliveroo", "Roofoods Ltd trading  as Deliveroo")
 print("ok")
