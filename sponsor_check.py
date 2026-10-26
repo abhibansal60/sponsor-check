@@ -76,7 +76,10 @@ def build_uk():
 def snapshot_us():
     emp = defaultdict(lambda: [0, ""])
     # Long format: one row per employer, tax ID, zip and measure ("New Employment Approval", ...).
-    for row in csv.DictReader(io.StringIO(fetch(US_CSV))):
+    reader = csv.DictReader(io.StringIO(fetch(US_CSV)))
+    if "Fiscal Year   " not in (reader.fieldnames or []):
+        sys.exit(f"US export has no 'Fiscal Year   ' column (got {reader.fieldnames}): did the export change?")
+    for row in reader:
         name = row["Employer (Petitioner) Name"].strip()
         if not name or not row["Measure Names"].endswith("Approval"):
             continue
@@ -85,8 +88,14 @@ def snapshot_us():
         e = emp[name]
         e[0] += int(row["Measure Values"].replace(",", "") or 0)
         if row["Petitioner City"] and not e[1]:
-            e[1] = f'{row["Petitioner City"].title()}, {row["Petitioner State"]}'
+            e[1] = ", ".join(filter(None, [row["Petitioner City"].title(), row["Petitioner State"]]))
     rows = sorted([n, a, place] for n, (a, place) in emp.items() if a)
+    # A renamed measure or an empty crosstab must not wipe the committed snapshot.
+    if os.path.exists(US_SNAPSHOT):
+        with open(US_SNAPSHOT, newline="") as f:
+            old = sum(1 for _ in f) - 1
+        if len(rows) < old // 2:
+            sys.exit(f"US export gave {len(rows)} employers, the snapshot has {old}: not overwriting it.")
     with open(US_SNAPSHOT, "w", newline="") as f:
         csv.writer(f).writerows([["employer", "approvals", "place"]] + rows)
     print(f"wrote {US_SNAPSHOT}: {len(rows)} employers (FY{US_YEAR})")
