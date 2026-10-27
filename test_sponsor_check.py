@@ -24,4 +24,25 @@ assert ratings("Worker (A rating)") == {"A"}
 assert ratings("Worker (A (Premium))") == {"A"}  # Google's row: showed " rating" before
 assert ratings("Temporary Worker (B rating)") == {"B"}
 assert ratings("Worker (UK Expansion Worker: Provisional )") == {"Provisional"}
+
+# snapshot_us on a tiny export: sums approval measures only, no dangling comma, guards the snapshot.
+import csv, os, tempfile
+import sponsor_check as sc
+H = '"Fiscal Year   ","Employer (Petitioner) Name","Petitioner City","Petitioner State","Measure Names","Measure Values"\n'
+sc.US_SNAPSHOT = os.path.join(tempfile.mkdtemp(), "us.csv")
+sc.fetch = lambda url: H + ('2025,ACME INC,Austin,TX,New Employment Approval,"1,200"\n'
+                            '2025,ACME INC,Austin,TX,Continuation Approval,3\n'
+                            '2025,ACME INC,Austin,TX,New Employment Denial,9\n'
+                            '2025,BETA LLC,Hillsboro,,New Employment Approval,2\n')
+sc.snapshot_us()
+assert list(csv.reader(open(sc.US_SNAPSHOT, newline=""))) == [
+    ["employer", "approvals", "place"], ["ACME INC", "1203", "Austin, TX"], ["BETA LLC", "2", "Hillsboro"]]
+for export in (H, H.replace("Fiscal Year   ", "Fiscal Year"), H + "2026,ACME INC,Austin,TX,New Employment Approval,1\n"):
+    sc.fetch = lambda url: export
+    try:
+        sc.snapshot_us()
+        raise AssertionError("snapshot_us accepted a bad export")
+    except SystemExit:
+        pass
+assert len(list(csv.reader(open(sc.US_SNAPSHOT, newline="")))) == 3  # untouched
 print("ok")
